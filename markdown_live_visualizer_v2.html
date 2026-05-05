@@ -1,0 +1,618 @@
+
+<h2 class="sr-only">Markdown editor with live preview, extended keyboard shortcuts, word wrap toggle, find bar, and dictionary lookup</h2>
+<style>
+#md-app{font-family:var(--font-sans);display:flex;flex-direction:column;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;min-height:640px}
+#md-toolbar{display:flex;align-items:center;gap:3px;padding:7px 10px;border-bottom:0.5px solid var(--color-border-tertiary);flex-wrap:wrap;background:var(--color-background-secondary)}
+.tb-btn{background:none;border:0.5px solid transparent;border-radius:var(--border-radius-md);padding:4px 8px;font-size:13px;font-family:var(--font-mono);cursor:pointer;color:var(--color-text-secondary);line-height:1.4;transition:background 0.12s,color 0.12s,border-color 0.12s}
+.tb-btn:hover{background:var(--color-background-primary);border-color:var(--color-border-secondary);color:var(--color-text-primary)}
+.tb-btn.active{background:var(--color-background-primary);border-color:var(--color-border-primary);color:var(--color-text-primary)}
+.tb-sep{width:0.5px;height:20px;background:var(--color-border-tertiary);margin:0 4px;flex-shrink:0}
+#md-settings{display:flex;align-items:center;gap:14px;padding:5px 12px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:12px;color:var(--color-text-secondary)}
+#md-settings label{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.toggle{position:relative;width:32px;height:18px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;border-radius:9px;background:var(--color-border-secondary);transition:background 0.2s}
+.toggle input:checked+.toggle-track{background:#1D9E75}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform 0.2s;pointer-events:none}
+.toggle input:checked~.toggle-thumb{transform:translateX(14px)}
+#pane-labels{display:flex;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.pane-label{flex:1;text-align:center;font-size:10px;font-weight:500;letter-spacing:0.1em;color:var(--color-text-tertiary);padding:4px;text-transform:uppercase}
+.pane-label+.pane-label{border-left:0.5px solid var(--color-border-tertiary)}
+#md-panes{display:flex;flex:1;min-height:0}
+#md-editor{flex:1;min-width:0;resize:none;border:none;outline:none;padding:16px;font-family:var(--font-mono);font-size:14px;line-height:1.7;color:var(--color-text-primary);background:var(--color-background-primary);border-right:0.5px solid var(--color-border-tertiary);white-space:pre-wrap}
+#md-editor.nowrap{white-space:pre;overflow-x:auto}
+#md-preview{flex:1;min-width:0;overflow:auto;padding:16px 20px;background:var(--color-background-primary);font-size:14px;line-height:1.75;color:var(--color-text-primary)}
+#md-preview h1,#md-preview h2,#md-preview h3,#md-preview h4{font-family:var(--font-serif);font-weight:500;margin:1.25em 0 0.4em}
+#md-preview h1{font-size:22px}#md-preview h2{font-size:18px}#md-preview h3{font-size:16px}
+#md-preview p{margin:0 0 0.8em}
+#md-preview code{font-family:var(--font-mono);font-size:12.5px;background:var(--color-background-tertiary);padding:1px 5px;border-radius:4px}
+#md-preview pre{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px 14px;overflow-x:auto;margin:0 0 1em}
+#md-preview pre code{background:none;padding:0;font-size:13px}
+#md-preview blockquote{border-left:3px solid var(--color-border-secondary);margin:0 0 1em;padding:4px 12px;color:var(--color-text-secondary)}
+#md-preview a{color:#1D9E75;text-decoration:none}
+#md-preview a:hover{text-decoration:underline}
+#md-preview ul,#md-preview ol{margin:0 0 0.8em;padding-left:1.4em}
+#md-preview li{margin:0.2em 0}
+#md-preview table{border-collapse:collapse;width:100%;margin:0 0 1em;font-size:13px}
+#md-preview th,#md-preview td{border:0.5px solid var(--color-border-secondary);padding:6px 10px;text-align:left}
+#md-preview th{background:var(--color-background-secondary);font-weight:500}
+#md-preview img{max-width:100%}
+#md-preview hr{border:none;border-top:0.5px solid var(--color-border-tertiary);margin:1.5em 0}
+#find-bar{display:none;align-items:center;gap:6px;padding:5px 10px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:13px}
+#find-bar.visible{display:flex}
+#find-input,#replace-input{font-family:var(--font-sans);font-size:13px;padding:4px 8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);outline:none;width:140px}
+#find-input:focus,#replace-input:focus{border-color:var(--color-border-primary)}
+#find-input.nomatch{border-color:#E24B4A;color:#E24B4A}
+.fb-btn{font-size:12px;padding:3px 8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:none;color:var(--color-text-secondary);cursor:pointer}
+.fb-btn:hover{background:var(--color-background-primary);color:var(--color-text-primary)}
+#find-count{font-size:12px;color:var(--color-text-tertiary);min-width:50px}
+#find-close{margin-left:auto;font-size:16px;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);line-height:1;padding:2px 6px}
+#find-close:hover{color:var(--color-text-primary)}
+#md-status{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:11px;color:var(--color-text-tertiary)}
+#dict-panel{border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);max-height:0;overflow:hidden;transition:max-height 0.25s ease}
+#dict-panel.open{max-height:300px;overflow-y:auto}
+#dict-inner{padding:14px 16px}
+#dict-search{display:flex;gap:8px;margin-bottom:12px}
+#dict-input{flex:1;font-family:var(--font-sans);font-size:14px;padding:6px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-secondary);color:var(--color-text-primary);outline:none}
+#dict-input:focus{border-color:var(--color-border-primary)}
+#dict-go{font-family:var(--font-sans);font-size:13px;padding:6px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
+#dict-go:hover{background:var(--color-background-tertiary)}
+#dict-result{font-size:13px;line-height:1.6}
+.dict-word{font-size:17px;font-weight:500;margin-bottom:2px}
+.dict-phonetic{font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;font-style:italic}
+.dict-pos{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-secondary);margin:8px 0 4px;padding-top:6px;border-top:0.5px solid var(--color-border-tertiary)}
+.dict-def{margin:0 0 4px}
+.dict-ex{color:var(--color-text-secondary);font-style:italic;margin:0 0 4px 12px;font-size:12px}
+.dict-syn{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+#shortcuts-panel{border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);max-height:0;overflow:hidden;transition:max-height 0.3s ease}
+#shortcuts-panel.open{max-height:400px;overflow-y:auto}
+#shortcuts-inner{padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:0}
+.sc-group{margin-bottom:12px}
+.sc-group-title{font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-text-tertiary);margin-bottom:6px}
+.sc-row{display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px}
+.sc-row:last-child{border-bottom:none}
+.sc-desc{color:var(--color-text-secondary)}
+.sc-key{font-family:var(--font-mono);font-size:11px;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:4px;padding:1px 5px;white-space:nowrap}
+</style>
+
+<div id="md-app">
+  <div id="md-toolbar">
+    <button class="tb-btn" id="undo-btn" title="Ctrl+Z">↩ undo</button>
+    <button class="tb-btn" id="redo-btn" title="Ctrl+Y">↪ redo</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="bold" title="Ctrl+B"><b>B</b></button>
+    <button class="tb-btn" data-action="italic" title="Ctrl+I"><i>I</i></button>
+    <button class="tb-btn" data-action="strike" title="Ctrl+Shift+X" style="text-decoration:line-through">S</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="h1" title="Ctrl+1">H1</button>
+    <button class="tb-btn" data-action="h2" title="Ctrl+2">H2</button>
+    <button class="tb-btn" data-action="h3" title="Ctrl+3">H3</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="link" title="Ctrl+K">🔗</button>
+    <button class="tb-btn" data-action="image" title="Ctrl+Shift+I">🖼</button>
+    <button class="tb-btn" data-action="code" title="Ctrl+`">&#96;code&#96;</button>
+    <button class="tb-btn" data-action="codeblock" title="Ctrl+Shift+`">&#96;&#96;&#96;</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="ul" title="Ctrl+Shift+U">• list</button>
+    <button class="tb-btn" data-action="ol" title="Ctrl+Shift+O">1. list</button>
+    <button class="tb-btn" data-action="quote" title="Ctrl+Shift+Q">" quote</button>
+    <button class="tb-btn" data-action="hr">— hr</button>
+    <button class="tb-btn" data-action="table">table</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="clear" style="color:var(--color-text-tertiary)">clear</button>
+  </div>
+
+  <div id="md-settings">
+    <label><span class="toggle"><input type="checkbox" id="wrap-toggle" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></span>word wrap</label>
+    <label><span class="toggle"><input type="checkbox" id="sync-scroll" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></span>sync scroll</label>
+    <label><span class="toggle"><input type="checkbox" id="preview-toggle" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></span>preview</label>
+    <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <button class="tb-btn" id="find-toggle-btn" style="font-size:12px" title="Ctrl+F">find/replace</button>
+      <button class="tb-btn" id="dict-toggle-btn" style="font-size:12px">dict</button>
+      <button class="tb-btn" id="sc-toggle-btn" style="font-size:12px">shortcuts</button>
+      <button class="tb-btn" id="copy-btn" style="font-size:12px">copy md</button>
+      <button class="tb-btn" id="copy-html-btn" style="font-size:12px">copy html</button>
+    </span>
+  </div>
+
+  <div id="find-bar">
+    <input id="find-input" type="text" placeholder="Find...">
+    <button class="fb-btn" id="find-prev">▲</button>
+    <button class="fb-btn" id="find-next">▼</button>
+    <span id="find-count"></span>
+    <input id="replace-input" type="text" placeholder="Replace with...">
+    <button class="fb-btn" id="replace-one">replace</button>
+    <button class="fb-btn" id="replace-all">all</button>
+    <button id="find-close">×</button>
+  </div>
+
+  <div id="pane-labels">
+    <div class="pane-label">editor</div>
+    <div class="pane-label" id="preview-label">preview</div>
+  </div>
+
+  <div id="md-panes" style="height:440px">
+    <textarea id="md-editor" spellcheck="true" placeholder="Start writing markdown..."></textarea>
+    <div id="md-preview"></div>
+  </div>
+
+  <div id="md-status">
+    <span id="status-words">0 words · 0 chars · line 1, col 1</span>
+    <span id="status-hint" style="color:var(--color-text-tertiary)">Ctrl+F find · Alt+↑↓ move line · Ctrl+D duplicate · Ctrl+/ comment</span>
+  </div>
+
+  <div id="dict-panel">
+    <div id="dict-inner">
+      <div id="dict-search">
+        <input id="dict-input" type="text" placeholder="Look up a word..." autocomplete="off" spellcheck="false">
+        <button id="dict-go">look up</button>
+      </div>
+      <div id="dict-result"><span style="color:var(--color-text-tertiary);font-size:13px">Type a word and press Enter or click 'look up'. Double-click any word in the preview to look it up.</span></div>
+    </div>
+  </div>
+
+  <div id="shortcuts-panel">
+    <div id="shortcuts-inner">
+      <div class="sc-group">
+        <div class="sc-group-title">history</div>
+        <div class="sc-row"><span class="sc-desc">undo</span><span class="sc-key">Ctrl+Z</span></div>
+        <div class="sc-row"><span class="sc-desc">redo</span><span class="sc-key">Ctrl+Y / Ctrl+Shift+Z</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-group-title">formatting</div>
+        <div class="sc-row"><span class="sc-desc">bold</span><span class="sc-key">Ctrl+B</span></div>
+        <div class="sc-row"><span class="sc-desc">italic</span><span class="sc-key">Ctrl+I</span></div>
+        <div class="sc-row"><span class="sc-desc">strikethrough</span><span class="sc-key">Ctrl+Shift+X</span></div>
+        <div class="sc-row"><span class="sc-desc">inline code</span><span class="sc-key">Ctrl+`</span></div>
+        <div class="sc-row"><span class="sc-desc">code block</span><span class="sc-key">Ctrl+Shift+`</span></div>
+        <div class="sc-row"><span class="sc-desc">link</span><span class="sc-key">Ctrl+K</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-group-title">headings</div>
+        <div class="sc-row"><span class="sc-desc">heading 1</span><span class="sc-key">Ctrl+1</span></div>
+        <div class="sc-row"><span class="sc-desc">heading 2</span><span class="sc-key">Ctrl+2</span></div>
+        <div class="sc-row"><span class="sc-desc">heading 3</span><span class="sc-key">Ctrl+3</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-group-title">blocks</div>
+        <div class="sc-row"><span class="sc-desc">bullet list</span><span class="sc-key">Ctrl+Shift+U</span></div>
+        <div class="sc-row"><span class="sc-desc">numbered list</span><span class="sc-key">Ctrl+Shift+O</span></div>
+        <div class="sc-row"><span class="sc-desc">blockquote</span><span class="sc-key">Ctrl+Shift+Q</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-group-title">line editing</div>
+        <div class="sc-row"><span class="sc-desc">duplicate line</span><span class="sc-key">Ctrl+D</span></div>
+        <div class="sc-row"><span class="sc-desc">delete line</span><span class="sc-key">Ctrl+Shift+K</span></div>
+        <div class="sc-row"><span class="sc-desc">move line up</span><span class="sc-key">Alt+↑</span></div>
+        <div class="sc-row"><span class="sc-desc">move line down</span><span class="sc-key">Alt+↓</span></div>
+        <div class="sc-row"><span class="sc-desc">select line</span><span class="sc-key">Ctrl+L</span></div>
+        <div class="sc-row"><span class="sc-desc">new line below</span><span class="sc-key">Ctrl+Enter</span></div>
+        <div class="sc-row"><span class="sc-desc">new line above</span><span class="sc-key">Ctrl+Shift+Enter</span></div>
+        <div class="sc-row"><span class="sc-desc">toggle comment</span><span class="sc-key">Ctrl+/</span></div>
+        <div class="sc-row"><span class="sc-desc">indent</span><span class="sc-key">Tab</span></div>
+        <div class="sc-row"><span class="sc-desc">outdent</span><span class="sc-key">Shift+Tab</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-group-title">navigation</div>
+        <div class="sc-row"><span class="sc-desc">find / replace</span><span class="sc-key">Ctrl+F</span></div>
+        <div class="sc-row"><span class="sc-desc">find next</span><span class="sc-key">F3 / Enter</span></div>
+        <div class="sc-row"><span class="sc-desc">find previous</span><span class="sc-key">Shift+F3</span></div>
+        <div class="sc-row"><span class="sc-desc">go to start</span><span class="sc-key">Ctrl+Home</span></div>
+        <div class="sc-row"><span class="sc-desc">go to end</span><span class="sc-key">Ctrl+End</span></div>
+        <div class="sc-row"><span class="sc-desc">close find bar</span><span class="sc-key">Escape</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script>
+const editor=document.getElementById('md-editor');
+const preview=document.getElementById('md-preview');
+const wrapToggle=document.getElementById('wrap-toggle');
+const syncToggle=document.getElementById('sync-scroll');
+const previewToggle=document.getElementById('preview-toggle');
+const dictPanel=document.getElementById('dict-panel');
+const dictToggleBtn=document.getElementById('dict-toggle-btn');
+const dictInput=document.getElementById('dict-input');
+const dictResult=document.getElementById('dict-result');
+const dictGo=document.getElementById('dict-go');
+const scPanel=document.getElementById('shortcuts-panel');
+const scBtn=document.getElementById('sc-toggle-btn');
+const statusWords=document.getElementById('status-words');
+const copyBtn=document.getElementById('copy-btn');
+const copyHtmlBtn=document.getElementById('copy-html-btn');
+const findBar=document.getElementById('find-bar');
+const findInput=document.getElementById('find-input');
+const replaceInput=document.getElementById('replace-input');
+const findCount=document.getElementById('find-count');
+const findToggleBtn=document.getElementById('find-toggle-btn');
+const previewLabel=document.getElementById('preview-label');
+const undoBtn=document.getElementById('undo-btn');
+const redoBtn=document.getElementById('redo-btn');
+
+marked.setOptions({breaks:true,gfm:true});
+
+// ── Undo/Redo stack ──────────────────────────────────────────────────────────
+const history=[];let histIdx=-1;let skipPush=false;
+function pushHistory(val){
+  if(skipPush)return;
+  if(history[histIdx]===val)return;
+  history.splice(histIdx+1);
+  history.push(val);
+  if(history.length>200)history.shift();
+  else histIdx++;
+  histIdx=history.length-1;
+}
+function applyHistory(val){
+  if(val===undefined)return;
+  skipPush=true;
+  const ss=editor.selectionStart,se=editor.selectionEnd;
+  editor.value=val;
+  editor.selectionStart=Math.min(ss,val.length);
+  editor.selectionEnd=Math.min(se,val.length);
+  skipPush=false;
+  render();
+}
+function undo(){if(histIdx>0){histIdx--;applyHistory(history[histIdx]);}}
+function redo(){if(histIdx<history.length-1){histIdx++;applyHistory(history[histIdx]);}}
+undoBtn.addEventListener('click',()=>{editor.focus();undo();});
+redoBtn.addEventListener('click',()=>{editor.focus();redo();});
+
+let pushTimer;
+editor.addEventListener('input',()=>{
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(()=>pushHistory(editor.value),400);
+  render();
+});
+pushHistory('');
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function render(){
+  const txt=editor.value;
+  preview.innerHTML=marked.parse(txt||'');
+  const words=txt.trim()?txt.trim().split(/\s+/).length:0;
+  const pos=getCursorPos();
+  statusWords.textContent=words+' word'+(words!==1?'s':'')+' · '+txt.length+' char'+(txt.length!==1?'s':'')+' · line '+pos.line+', col '+pos.col;
+  updateFindCount();
+}
+
+function getCursorPos(){
+  const s=editor.selectionStart;
+  const lines=editor.value.substring(0,s).split('\n');
+  return{line:lines.length,col:lines[lines.length-1].length+1};
+}
+editor.addEventListener('keyup',()=>{
+  const pos=getCursorPos();
+  const txt=editor.value;
+  const words=txt.trim()?txt.trim().split(/\s+/).length:0;
+  statusWords.textContent=words+' word'+(words!==1?'s':'')+' · '+txt.length+' char'+(txt.length!==1?'s':'')+' · line '+pos.line+', col '+pos.col;
+});
+
+// ── Word wrap & toggles ──────────────────────────────────────────────────────
+wrapToggle.addEventListener('change',()=>editor.classList.toggle('nowrap',!wrapToggle.checked));
+previewToggle.addEventListener('change',()=>{
+  preview.style.display=previewToggle.checked?'':'none';
+  previewLabel.style.display=previewToggle.checked?'':'none';
+});
+
+let isSyncing=false;
+editor.addEventListener('scroll',()=>{
+  if(!syncToggle.checked||isSyncing)return;
+  isSyncing=true;
+  const r=editor.scrollTop/(editor.scrollHeight-editor.clientHeight||1);
+  preview.scrollTop=r*(preview.scrollHeight-preview.clientHeight);
+  isSyncing=false;
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function getLineInfo(){
+  const v=editor.value,s=editor.selectionStart,e=editor.selectionEnd;
+  const lineStart=v.lastIndexOf('\n',s-1)+1;
+  const lineEnd=v.indexOf('\n',e);
+  return{v,s,e,lineStart,lineEnd:lineEnd===-1?v.length:lineEnd};
+}
+function setVal(val,ss,se){
+  pushHistory(editor.value);
+  skipPush=true;
+  editor.value=val;
+  editor.selectionStart=ss;
+  editor.selectionEnd=se!==undefined?se:ss;
+  skipPush=false;
+  render();
+}
+function wrap(before,after,defaultText){
+  const s=editor.selectionStart,e=editor.selectionEnd;
+  const sel=editor.value.substring(s,e)||defaultText;
+  const rep=before+sel+after;
+  setVal(editor.value.substring(0,s)+rep+editor.value.substring(e),
+    s+before.length, s+before.length+sel.length);
+  editor.focus();
+}
+function linePrefix(prefix){
+  const{v,s,lineStart}=getLineInfo();
+  const line=v.substring(lineStart);
+  if(line.startsWith(prefix)){
+    setVal(v.substring(0,lineStart)+v.substring(lineStart+prefix.length),
+      Math.max(lineStart,s-prefix.length));
+  } else {
+    setVal(v.substring(0,lineStart)+prefix+v.substring(lineStart),s+prefix.length);
+  }
+  editor.focus();
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────────
+const actions={
+  bold:()=>wrap('**','**','bold text'),
+  italic:()=>wrap('*','*','italic text'),
+  strike:()=>wrap('~~','~~','strikethrough'),
+  h1:()=>linePrefix('# '),
+  h2:()=>linePrefix('## '),
+  h3:()=>linePrefix('### '),
+  link:()=>{
+    const s=editor.selectionStart,e=editor.selectionEnd,v=editor.value;
+    const sel=v.substring(s,e)||'link text';
+    const rep='['+sel+'](url)';
+    setVal(v.substring(0,s)+rep+v.substring(e),s+sel.length+3,s+rep.length-1);
+    editor.focus();
+  },
+  image:()=>wrap('![','](url)','alt text'),
+  code:()=>wrap('`','`','code'),
+  codeblock:()=>wrap('\n```\n','\n```\n','code here'),
+  ul:()=>linePrefix('- '),
+  ol:()=>linePrefix('1. '),
+  quote:()=>linePrefix('> '),
+  hr:()=>{const s=editor.selectionStart;setVal(editor.value.substring(0,s)+'\n\n---\n\n'+editor.value.substring(s),s+7);editor.focus();},
+  table:()=>{const t='\n| Header | Header |\n| --- | --- |\n| Cell | Cell |\n';const s=editor.selectionStart;setVal(editor.value.substring(0,s)+t+editor.value.substring(s),s+t.length);editor.focus();},
+  clear:()=>{if(confirm('Clear all content?')){setVal('',0);}},
+  duplicateLine:()=>{
+    const{v,s,lineStart,lineEnd}=getLineInfo();
+    const line=v.substring(lineStart,lineEnd);
+    setVal(v.substring(0,lineEnd)+'\n'+line+v.substring(lineEnd),s+(lineEnd-lineStart+1));
+    editor.focus();
+  },
+  deleteLine:()=>{
+    const{v,s,lineStart,lineEnd}=getLineInfo();
+    const newVal=lineStart===0?v.substring(lineEnd+1):v.substring(0,lineStart-1)+v.substring(lineEnd);
+    setVal(newVal,Math.min(lineStart,newVal.length));
+    editor.focus();
+  },
+  moveLineUp:()=>{
+    const{v,s,e,lineStart,lineEnd}=getLineInfo();
+    if(lineStart===0)return;
+    const prevLineStart=v.lastIndexOf('\n',lineStart-2)+1;
+    const line=v.substring(lineStart,lineEnd);
+    const prevLine=v.substring(prevLineStart,lineStart-1);
+    const newVal=v.substring(0,prevLineStart)+line+'\n'+prevLine+v.substring(lineEnd);
+    const offset=-(prevLine.length+1);
+    setVal(newVal,s+offset,e+offset);
+    editor.focus();
+  },
+  moveLineDown:()=>{
+    const{v,s,e,lineStart,lineEnd}=getLineInfo();
+    if(lineEnd===v.length)return;
+    const nextLineEnd=v.indexOf('\n',lineEnd+1);
+    const end2=nextLineEnd===-1?v.length:nextLineEnd;
+    const line=v.substring(lineStart,lineEnd);
+    const nextLine=v.substring(lineEnd+1,end2);
+    const newVal=v.substring(0,lineStart)+nextLine+'\n'+line+v.substring(end2);
+    const offset=nextLine.length+1;
+    setVal(newVal,s+offset,e+offset);
+    editor.focus();
+  },
+  selectLine:()=>{
+    const{lineStart,lineEnd}=getLineInfo();
+    editor.selectionStart=lineStart;editor.selectionEnd=lineEnd;editor.focus();
+  },
+  newLineBelow:()=>{
+    const{v,lineEnd}=getLineInfo();
+    setVal(v.substring(0,lineEnd)+'\n'+v.substring(lineEnd),lineEnd+1);
+    editor.focus();
+  },
+  newLineAbove:()=>{
+    const{v,lineStart}=getLineInfo();
+    setVal(v.substring(0,lineStart)+'\n'+v.substring(lineStart),lineStart);
+    editor.focus();
+  },
+  toggleComment:()=>{
+    const{v,s,lineStart,lineEnd}=getLineInfo();
+    const line=v.substring(lineStart,lineEnd);
+    if(line.startsWith('<!--')&&line.endsWith('-->')){
+      const inner=line.slice(4,-3).trim();
+      setVal(v.substring(0,lineStart)+inner+v.substring(lineEnd),lineStart+inner.length);
+    } else {
+      const rep='<!-- '+line+' -->';
+      setVal(v.substring(0,lineStart)+rep+v.substring(lineEnd),lineStart+rep.length);
+    }
+    editor.focus();
+  },
+  indent:()=>{
+    const s=editor.selectionStart,e=editor.selectionEnd;
+    setVal(editor.value.substring(0,s)+'  '+editor.value.substring(e),s+2);
+    editor.focus();
+  },
+  outdent:()=>{
+    const{v,s,lineStart}=getLineInfo();
+    const line=v.substring(lineStart);
+    if(line.startsWith('  ')){setVal(v.substring(0,lineStart)+v.substring(lineStart+2),Math.max(lineStart,s-2));}
+    editor.focus();
+  }
+};
+
+document.querySelectorAll('.tb-btn[data-action]').forEach(btn=>{
+  btn.addEventListener('click',()=>actions[btn.dataset.action]&&actions[btn.dataset.action]());
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+editor.addEventListener('keydown',e=>{
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl&&!e.altKey){
+    if(e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
+    else if((e.key==='y')||(e.key==='z'&&e.shiftKey)){e.preventDefault();redo();}
+    else if(e.key==='b'){e.preventDefault();actions.bold();}
+    else if(e.key==='i'){e.preventDefault();actions.italic();}
+    else if(e.key==='k'){e.preventDefault();actions.link();}
+    else if(e.key==='`'&&!e.shiftKey){e.preventDefault();actions.code();}
+    else if(e.key==='`'&&e.shiftKey){e.preventDefault();actions.codeblock();}
+    else if(e.key==='1'){e.preventDefault();actions.h1();}
+    else if(e.key==='2'){e.preventDefault();actions.h2();}
+    else if(e.key==='3'){e.preventDefault();actions.h3();}
+    else if(e.key==='d'&&!e.shiftKey){e.preventDefault();actions.duplicateLine();}
+    else if(e.key==='l'){e.preventDefault();actions.selectLine();}
+    else if(e.key==='/'&&!e.shiftKey){e.preventDefault();actions.toggleComment();}
+    else if(e.key==='f'){e.preventDefault();openFind();}
+    else if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();actions.newLineBelow();}
+    else if(e.key==='Enter'&&e.shiftKey){e.preventDefault();actions.newLineAbove();}
+    else if(e.shiftKey&&e.key==='X'){e.preventDefault();actions.strike();}
+    else if(e.shiftKey&&e.key==='U'){e.preventDefault();actions.ul();}
+    else if(e.shiftKey&&e.key==='O'){e.preventDefault();actions.ol();}
+    else if(e.shiftKey&&e.key==='Q'){e.preventDefault();actions.quote();}
+    else if(e.shiftKey&&(e.key==='K'||e.key==='k')){e.preventDefault();actions.deleteLine();}
+    else if(e.shiftKey&&e.key==='I'){e.preventDefault();actions.image();}
+  }
+  if(e.altKey&&!ctrl){
+    if(e.key==='ArrowUp'){e.preventDefault();actions.moveLineUp();}
+    else if(e.key==='ArrowDown'){e.preventDefault();actions.moveLineDown();}
+  }
+  if(e.key==='Tab'&&!ctrl){
+    e.preventDefault();
+    if(e.shiftKey)actions.outdent();else actions.indent();
+  }
+  if(e.key==='F3'){e.preventDefault();e.shiftKey?findPrev():findNext();}
+  if(e.key==='Escape'){if(findBar.classList.contains('visible')){closeFind();editor.focus();}}
+});
+
+// ── Find & Replace ────────────────────────────────────────────────────────────
+let findMatches=[],findCurrent=0;
+function openFind(){
+  findBar.classList.add('visible');
+  findToggleBtn.classList.add('active');
+  const sel=editor.value.substring(editor.selectionStart,editor.selectionEnd).trim();
+  if(sel&&sel.length<80)findInput.value=sel;
+  findInput.focus();findInput.select();
+  updateFindCount();
+}
+function closeFind(){findBar.classList.remove('visible');findToggleBtn.classList.remove('active');findInput.classList.remove('nomatch');findCount.textContent='';}
+function updateFindCount(){
+  const q=findInput.value;
+  if(!q||!findBar.classList.contains('visible')){findMatches=[];findCount.textContent='';return;}
+  const v=editor.value;const lq=q.toLowerCase();
+  findMatches=[];let i=0;
+  const lv=v.toLowerCase();
+  while((i=lv.indexOf(lq,i))!==-1){findMatches.push(i);i+=q.length;}
+  findCount.textContent=findMatches.length?findCurrent+1+'/'+findMatches.length:'no results';
+  findInput.classList.toggle('nomatch',findMatches.length===0);
+}
+function findNext(){
+  const q=findInput.value;if(!q)return;
+  updateFindCount();
+  if(!findMatches.length)return;
+  findCurrent=(findCurrent+1)%findMatches.length;
+  const idx=findMatches[findCurrent];
+  editor.selectionStart=idx;editor.selectionEnd=idx+q.length;
+  editor.focus();scrollEditorToCursor();
+  findCount.textContent=(findCurrent+1)+'/'+findMatches.length;
+}
+function findPrev(){
+  const q=findInput.value;if(!q)return;
+  updateFindCount();
+  if(!findMatches.length)return;
+  findCurrent=(findCurrent-1+findMatches.length)%findMatches.length;
+  const idx=findMatches[findCurrent];
+  editor.selectionStart=idx;editor.selectionEnd=idx+q.length;
+  editor.focus();scrollEditorToCursor();
+  findCount.textContent=(findCurrent+1)+'/'+findMatches.length;
+}
+function scrollEditorToCursor(){
+  const lineH=parseInt(getComputedStyle(editor).lineHeight)||22;
+  const lines=editor.value.substring(0,editor.selectionStart).split('\n').length;
+  editor.scrollTop=(lines-3)*lineH;
+}
+function replaceOne(){
+  const q=findInput.value,r=replaceInput.value;
+  if(!q||!findMatches.length)return;
+  const idx=findMatches[findCurrent];
+  setVal(editor.value.substring(0,idx)+r+editor.value.substring(idx+q.length),idx+r.length);
+  updateFindCount();
+}
+function replaceAll(){
+  const q=findInput.value,r=replaceInput.value;
+  if(!q)return;
+  const count=(editor.value.split(q).length-1);
+  if(!count)return;
+  setVal(editor.value.split(q).join(r),editor.selectionStart);
+  findMatches=[];findCount.textContent='replaced '+count;
+}
+findToggleBtn.addEventListener('click',()=>findBar.classList.contains('visible')?closeFind():openFind());
+document.getElementById('find-close').addEventListener('click',closeFind);
+document.getElementById('find-prev').addEventListener('click',findPrev);
+document.getElementById('find-next').addEventListener('click',findNext);
+document.getElementById('replace-one').addEventListener('click',replaceOne);
+document.getElementById('replace-all').addEventListener('click',replaceAll);
+findInput.addEventListener('input',()=>{findCurrent=0;updateFindCount();});
+findInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.shiftKey?findPrev():findNext();}
+  if(e.key==='Escape'){closeFind();editor.focus();}
+});
+
+// ── Shortcuts panel ───────────────────────────────────────────────────────────
+scBtn.addEventListener('click',()=>{scPanel.classList.toggle('open');scBtn.classList.toggle('active');});
+
+// ── Dictionary ────────────────────────────────────────────────────────────────
+dictToggleBtn.addEventListener('click',()=>{dictPanel.classList.toggle('open');dictToggleBtn.classList.toggle('active');if(dictPanel.classList.contains('open'))dictInput.focus();});
+async function lookupWord(word){
+  word=word.trim().toLowerCase().replace(/[^a-zA-Z'-]/g,'');if(!word)return;
+  dictResult.innerHTML='<span style="color:var(--color-text-tertiary);font-size:13px">Looking up <em>'+word+'</em>...</span>';
+  try{
+    const r=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(word));
+    if(!r.ok){dictResult.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">No definition found for <em>'+word+'</em>.</span>';return;}
+    const data=await r.json();const entry=data[0];
+    let html='<div class="dict-word">'+entry.word+'</div>';
+    const phone=(entry.phonetics||[]).find(p=>p.text);
+    if(phone)html+='<div class="dict-phonetic">'+phone.text+'</div>';
+    (entry.meanings||[]).slice(0,3).forEach(m=>{
+      html+='<div class="dict-pos">'+m.partOfSpeech+'</div>';
+      (m.definitions||[]).slice(0,2).forEach((d,i)=>{
+        html+='<p class="dict-def">'+(i+1)+'. '+d.definition+'</p>';
+        if(d.example)html+='<p class="dict-ex">"'+d.example+'"</p>';
+      });
+      if(m.synonyms&&m.synonyms.length)html+='<div class="dict-syn">syn: '+m.synonyms.slice(0,5).join(', ')+'</div>';
+    });
+    dictResult.innerHTML=html;
+  }catch(err){dictResult.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Could not fetch. Check your connection.</span>';}
+}
+dictGo.addEventListener('click',()=>lookupWord(dictInput.value));
+dictInput.addEventListener('keydown',e=>{if(e.key==='Enter')lookupWord(dictInput.value);});
+preview.addEventListener('dblclick',()=>{
+  const sel=window.getSelection();
+  if(sel&&sel.toString().trim()){
+    const word=sel.toString().trim();
+    if(!dictPanel.classList.contains('open')){dictPanel.classList.add('open');dictToggleBtn.classList.add('active');}
+    dictInput.value=word;lookupWord(word);
+  }
+});
+
+// ── Copy buttons ──────────────────────────────────────────────────────────────
+copyBtn.addEventListener('click',()=>navigator.clipboard.writeText(editor.value).then(()=>{copyBtn.textContent='copied!';setTimeout(()=>copyBtn.textContent='copy md',1500);}));
+copyHtmlBtn.addEventListener('click',()=>navigator.clipboard.writeText(preview.innerHTML).then(()=>{copyHtmlBtn.textContent='copied!';setTimeout(()=>copyHtmlBtn.textContent='copy html',1500);}));
+
+render();
+editor.value=`# Welcome to the Markdown Editor
+
+Start writing here. The preview updates **live** as you type.
+
+## Keyboard shortcuts
+
+Use **Ctrl+Z** / **Ctrl+Y** to undo and redo. Move lines with **Alt+↑/↓**, duplicate with **Ctrl+D**, delete with **Ctrl+Shift+K**. Open find/replace with **Ctrl+F**.
+
+Click **shortcuts** in the toolbar to see the full list.
+
+> Double-click any word in the preview to look it up in the dictionary.
+
+\`\`\`js
+// inline code and code blocks are supported too
+const greet = name => \`Hello, \${name}!\`;
+\`\`\`
+`;
+render();pushHistory(editor.value);
+</script>
