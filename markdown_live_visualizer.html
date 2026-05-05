@@ -1,0 +1,601 @@
+
+<h2 class="sr-only">Markdown editor with live preview, keyboard shortcuts, word wrap, find/replace, and a searchable markdown syntax reference</h2>
+<style>
+*{box-sizing:border-box}
+#md-app{font-family:var(--font-sans);display:flex;flex-direction:column;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+#md-toolbar{display:flex;align-items:center;gap:3px;padding:7px 10px;border-bottom:0.5px solid var(--color-border-tertiary);flex-wrap:wrap;background:var(--color-background-secondary)}
+.tb-btn{background:none;border:0.5px solid transparent;border-radius:var(--border-radius-md);padding:4px 8px;font-size:13px;font-family:var(--font-mono);cursor:pointer;color:var(--color-text-secondary);line-height:1.4;transition:background 0.1s,color 0.1s,border-color 0.1s}
+.tb-btn:hover{background:var(--color-background-primary);border-color:var(--color-border-secondary);color:var(--color-text-primary)}
+.tb-btn.active{background:var(--color-background-primary);border-color:var(--color-border-primary);color:var(--color-text-primary)}
+.tb-sep{width:0.5px;height:20px;background:var(--color-border-tertiary);margin:0 4px;flex-shrink:0}
+#md-settings{display:flex;align-items:center;gap:14px;padding:5px 12px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:12px;color:var(--color-text-secondary)}
+#md-settings label{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.toggle{position:relative;width:32px;height:18px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;border-radius:9px;background:var(--color-border-secondary);transition:background 0.2s}
+.toggle input:checked+.toggle-track{background:#1D9E75}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform 0.2s;pointer-events:none}
+.toggle input:checked~.toggle-thumb{transform:translateX(14px)}
+#pane-labels{display:flex;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.pane-label{flex:1;text-align:center;font-size:10px;font-weight:500;letter-spacing:0.1em;color:var(--color-text-tertiary);padding:4px;text-transform:uppercase}
+.pane-label+.pane-label{border-left:0.5px solid var(--color-border-tertiary)}
+#md-panes{display:flex;height:400px}
+#md-editor{flex:1;min-width:0;resize:none;border:none;outline:none;padding:16px;font-family:var(--font-mono);font-size:14px;line-height:1.7;color:var(--color-text-primary);background:var(--color-background-primary);border-right:0.5px solid var(--color-border-tertiary);white-space:pre-wrap}
+#md-editor.nowrap{white-space:pre;overflow-x:auto}
+#md-preview{flex:1;min-width:0;overflow:auto;padding:16px 20px;background:var(--color-background-primary);font-size:14px;line-height:1.75;color:var(--color-text-primary)}
+#md-preview h1,#md-preview h2,#md-preview h3,#md-preview h4{font-family:var(--font-serif);font-weight:500;margin:1.25em 0 0.4em}
+#md-preview h1{font-size:22px}#md-preview h2{font-size:18px}#md-preview h3{font-size:16px}
+#md-preview p{margin:0 0 0.8em}
+#md-preview code{font-family:var(--font-mono);font-size:12.5px;background:var(--color-background-tertiary);padding:1px 5px;border-radius:4px}
+#md-preview pre{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px 14px;overflow-x:auto;margin:0 0 1em}
+#md-preview pre code{background:none;padding:0;font-size:13px}
+#md-preview blockquote{border-left:3px solid var(--color-border-secondary);margin:0 0 1em;padding:4px 12px;color:var(--color-text-secondary)}
+#md-preview a{color:#1D9E75;text-decoration:none}
+#md-preview a:hover{text-decoration:underline}
+#md-preview ul,#md-preview ol{margin:0 0 0.8em;padding-left:1.4em}
+#md-preview li{margin:0.2em 0}
+#md-preview table{border-collapse:collapse;width:100%;margin:0 0 1em;font-size:13px}
+#md-preview th,#md-preview td{border:0.5px solid var(--color-border-secondary);padding:6px 10px;text-align:left}
+#md-preview th{background:var(--color-background-secondary);font-weight:500}
+#md-preview img{max-width:100%}
+#md-preview hr{border:none;border-top:0.5px solid var(--color-border-tertiary);margin:1.5em 0}
+#find-bar{display:none;align-items:center;gap:6px;padding:5px 10px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:13px}
+#find-bar.visible{display:flex}
+#find-input,#replace-input{font-family:var(--font-sans);font-size:13px;padding:4px 8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);outline:none;width:140px}
+#find-input:focus,#replace-input:focus{border-color:var(--color-border-primary)}
+#find-input.nomatch{border-color:#E24B4A}
+.fb-btn{font-size:12px;padding:3px 8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:none;color:var(--color-text-secondary);cursor:pointer}
+.fb-btn:hover{background:var(--color-background-primary);color:var(--color-text-primary)}
+#find-count{font-size:12px;color:var(--color-text-tertiary);min-width:60px}
+#find-close{margin-left:auto;font-size:16px;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);padding:2px 6px}
+#find-close:hover{color:var(--color-text-primary)}
+#md-status{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:11px;color:var(--color-text-tertiary)}
+
+/* ── Reference panel ── */
+#ref-panel{border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);max-height:0;overflow:hidden;transition:max-height 0.3s ease}
+#ref-panel.open{max-height:380px;display:flex;flex-direction:column}
+#ref-header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);flex-shrink:0}
+#ref-search{flex:1;font-family:var(--font-sans);font-size:13px;padding:5px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);outline:none}
+#ref-search:focus{border-color:var(--color-border-primary)}
+#ref-cats{display:flex;gap:4px;flex-wrap:wrap}
+.cat-btn{font-size:11px;padding:3px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);background:none;color:var(--color-text-secondary);cursor:pointer;white-space:nowrap}
+.cat-btn:hover,.cat-btn.on{background:var(--color-background-secondary);border-color:var(--color-border-secondary);color:var(--color-text-primary)}
+#ref-body{overflow-y:auto;flex:1;padding:10px 14px}
+.ref-entry{border-bottom:0.5px solid var(--color-border-tertiary);padding:10px 0}
+.ref-entry:last-child{border-bottom:none}
+.ref-entry-head{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.ref-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.ref-cat-tag{font-size:10px;padding:1px 6px;border-radius:10px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-tertiary);letter-spacing:0.04em}
+.ref-shortcut{font-size:11px;font-family:var(--font-mono);color:var(--color-text-tertiary);margin-left:auto}
+.ref-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.ref-syntax{font-family:var(--font-mono);font-size:12px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:6px 10px;color:var(--color-text-primary);white-space:pre-wrap;line-height:1.5;cursor:pointer;transition:border-color 0.1s}
+.ref-syntax:hover{border-color:var(--color-border-primary)}
+.ref-note{font-size:12px;color:var(--color-text-secondary);line-height:1.5;padding-top:2px}
+.ref-copy-hint{font-size:10px;color:var(--color-text-tertiary);margin-top:3px}
+.no-results{padding:24px;text-align:center;color:var(--color-text-tertiary);font-size:13px}
+
+/* ── Shortcuts panel ── */
+#shortcuts-panel{border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);max-height:0;overflow:hidden;transition:max-height 0.3s ease}
+#shortcuts-panel.open{max-height:340px;overflow-y:auto}
+#shortcuts-inner{padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.sc-group{margin-bottom:10px}
+.sc-group-title{font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-text-tertiary);margin-bottom:4px}
+.sc-row{display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px}
+.sc-row:last-child{border-bottom:none}
+.sc-desc{color:var(--color-text-secondary)}
+.sc-key{font-family:var(--font-mono);font-size:10px;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:4px;padding:1px 5px;white-space:nowrap}
+</style>
+
+<div id="md-app">
+  <div id="md-toolbar">
+    <button class="tb-btn" id="undo-btn" title="Ctrl+Z">↩</button>
+    <button class="tb-btn" id="redo-btn" title="Ctrl+Y">↪</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="bold" title="Ctrl+B"><b>B</b></button>
+    <button class="tb-btn" data-action="italic" title="Ctrl+I"><i>I</i></button>
+    <button class="tb-btn" data-action="strike" title="Ctrl+Shift+X" style="text-decoration:line-through">S</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="h1" title="Ctrl+1">H1</button>
+    <button class="tb-btn" data-action="h2" title="Ctrl+2">H2</button>
+    <button class="tb-btn" data-action="h3" title="Ctrl+3">H3</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="link" title="Ctrl+K">🔗</button>
+    <button class="tb-btn" data-action="image" title="Ctrl+Shift+I">🖼</button>
+    <button class="tb-btn" data-action="code" title="Ctrl+`">&#96;&#96;</button>
+    <button class="tb-btn" data-action="codeblock" title="Ctrl+Shift+`">&#96;&#96;&#96;</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="ul" title="Ctrl+Shift+U">• list</button>
+    <button class="tb-btn" data-action="ol" title="Ctrl+Shift+O">1. list</button>
+    <button class="tb-btn" data-action="quote" title="Ctrl+Shift+Q">" quote</button>
+    <button class="tb-btn" data-action="hr">— hr</button>
+    <button class="tb-btn" data-action="table">table</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-action="clear" style="color:var(--color-text-tertiary)">clear</button>
+  </div>
+
+  <div id="md-settings">
+    <label><span class="toggle"><input type="checkbox" id="wrap-toggle" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></span>word wrap</label>
+    <label><span class="toggle"><input type="checkbox" id="sync-scroll" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></span>sync scroll</label>
+    <label><span class="toggle"><input type="checkbox" id="preview-toggle" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></span>preview</label>
+    <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <button class="tb-btn" id="find-toggle-btn" style="font-size:12px" title="Ctrl+F">find/replace</button>
+      <button class="tb-btn" id="ref-toggle-btn" style="font-size:12px">md reference</button>
+      <button class="tb-btn" id="sc-toggle-btn" style="font-size:12px">shortcuts</button>
+      <button class="tb-btn" id="copy-btn" style="font-size:12px">copy md</button>
+      <button class="tb-btn" id="copy-html-btn" style="font-size:12px">copy html</button>
+    </span>
+  </div>
+
+  <div id="find-bar">
+    <input id="find-input" type="text" placeholder="Find...">
+    <button class="fb-btn" id="find-prev">▲</button>
+    <button class="fb-btn" id="find-next">▼</button>
+    <span id="find-count"></span>
+    <input id="replace-input" type="text" placeholder="Replace with...">
+    <button class="fb-btn" id="replace-one">replace</button>
+    <button class="fb-btn" id="replace-all">all</button>
+    <button id="find-close">×</button>
+  </div>
+
+  <div id="pane-labels">
+    <div class="pane-label">editor</div>
+    <div class="pane-label" id="preview-label">preview</div>
+  </div>
+
+  <div id="md-panes">
+    <textarea id="md-editor" spellcheck="true"></textarea>
+    <div id="md-preview"></div>
+  </div>
+
+  <div id="md-status">
+    <span id="status-words">0 words · 0 chars · line 1, col 1</span>
+    <span>Ctrl+Z undo · Ctrl+D dup line · Alt+↑↓ move · Ctrl+F find</span>
+  </div>
+
+  <!-- ── Markdown Reference Panel ── -->
+  <div id="ref-panel">
+    <div id="ref-header">
+      <input id="ref-search" type="text" placeholder="Search syntax... (e.g. bold, table, link)">
+      <div id="ref-cats"></div>
+    </div>
+    <div id="ref-body"></div>
+  </div>
+
+  <!-- ── Shortcuts panel ── -->
+  <div id="shortcuts-panel">
+    <div id="shortcuts-inner">
+      <div class="sc-group"><div class="sc-group-title">history</div>
+        <div class="sc-row"><span class="sc-desc">undo</span><span class="sc-key">Ctrl+Z</span></div>
+        <div class="sc-row"><span class="sc-desc">redo</span><span class="sc-key">Ctrl+Y</span></div>
+      </div>
+      <div class="sc-group"><div class="sc-group-title">formatting</div>
+        <div class="sc-row"><span class="sc-desc">bold</span><span class="sc-key">Ctrl+B</span></div>
+        <div class="sc-row"><span class="sc-desc">italic</span><span class="sc-key">Ctrl+I</span></div>
+        <div class="sc-row"><span class="sc-desc">strikethrough</span><span class="sc-key">Ctrl+Shift+X</span></div>
+        <div class="sc-row"><span class="sc-desc">inline code</span><span class="sc-key">Ctrl+`</span></div>
+        <div class="sc-row"><span class="sc-desc">code block</span><span class="sc-key">Ctrl+Shift+`</span></div>
+        <div class="sc-row"><span class="sc-desc">link</span><span class="sc-key">Ctrl+K</span></div>
+        <div class="sc-row"><span class="sc-desc">image</span><span class="sc-key">Ctrl+Shift+I</span></div>
+      </div>
+      <div class="sc-group"><div class="sc-group-title">headings</div>
+        <div class="sc-row"><span class="sc-desc">H1 / H2 / H3</span><span class="sc-key">Ctrl+1/2/3</span></div>
+        <div class="sc-row"><span class="sc-desc">bullet list</span><span class="sc-key">Ctrl+Shift+U</span></div>
+        <div class="sc-row"><span class="sc-desc">numbered list</span><span class="sc-key">Ctrl+Shift+O</span></div>
+        <div class="sc-row"><span class="sc-desc">blockquote</span><span class="sc-key">Ctrl+Shift+Q</span></div>
+      </div>
+      <div class="sc-group"><div class="sc-group-title">line editing</div>
+        <div class="sc-row"><span class="sc-desc">duplicate line</span><span class="sc-key">Ctrl+D</span></div>
+        <div class="sc-row"><span class="sc-desc">delete line</span><span class="sc-key">Ctrl+Shift+K</span></div>
+        <div class="sc-row"><span class="sc-desc">move line up/down</span><span class="sc-key">Alt+↑/↓</span></div>
+        <div class="sc-row"><span class="sc-desc">select line</span><span class="sc-key">Ctrl+L</span></div>
+        <div class="sc-row"><span class="sc-desc">new line below</span><span class="sc-key">Ctrl+Enter</span></div>
+        <div class="sc-row"><span class="sc-desc">new line above</span><span class="sc-key">Ctrl+Shift+Enter</span></div>
+        <div class="sc-row"><span class="sc-desc">toggle comment</span><span class="sc-key">Ctrl+/</span></div>
+        <div class="sc-row"><span class="sc-desc">indent / outdent</span><span class="sc-key">Tab / Shift+Tab</span></div>
+      </div>
+      <div class="sc-group"><div class="sc-group-title">find & replace</div>
+        <div class="sc-row"><span class="sc-desc">open find bar</span><span class="sc-key">Ctrl+F</span></div>
+        <div class="sc-row"><span class="sc-desc">find next/prev</span><span class="sc-key">F3 / Shift+F3</span></div>
+        <div class="sc-row"><span class="sc-desc">close</span><span class="sc-key">Escape</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script>
+marked.setOptions({breaks:true,gfm:true});
+
+// ── Reference data ────────────────────────────────────────────────────────────
+const REF=[
+  // HEADINGS
+  {name:'Heading 1',cat:'headings',shortcut:'Ctrl+1',tags:'h1 title heading1 #',
+   syntax:'# Heading 1',note:'A single `#` followed by a space. Largest heading.'},
+  {name:'Heading 2',cat:'headings',shortcut:'Ctrl+2',tags:'h2 heading2 ##',
+   syntax:'## Heading 2',note:'Two `##` signs. Second-level section.'},
+  {name:'Heading 3',cat:'headings',shortcut:'Ctrl+3',tags:'h3 heading3 ###',
+   syntax:'### Heading 3',note:'Three `###` signs. Subsection.'},
+  {name:'Heading 4',cat:'headings',tags:'h4 heading4 ####',
+   syntax:'#### Heading 4',note:'Four `####` signs.'},
+  {name:'Heading 5',cat:'headings',tags:'h5 heading5 #####',
+   syntax:'##### Heading 5',note:'Five `#####` signs.'},
+  {name:'Heading 6',cat:'headings',tags:'h6 heading6 ######',
+   syntax:'###### Heading 6',note:'Six `######` signs. Smallest heading.'},
+  {name:'Alternate H1',cat:'headings',tags:'h1 setext heading underline',
+   syntax:'Heading 1\n=========',note:'Underline with `=` signs (any count). Setext style.'},
+  {name:'Alternate H2',cat:'headings',tags:'h2 setext heading underline dash',
+   syntax:'Heading 2\n---------',note:'Underline with `-` signs. Setext style.'},
+
+  // EMPHASIS
+  {name:'Bold',cat:'emphasis',shortcut:'Ctrl+B',tags:'bold strong ** __ double asterisk',
+   syntax:'**bold text**',note:'Wrap with double asterisks. Also works with double underscores `__bold__`.'},
+  {name:'Italic',cat:'emphasis',shortcut:'Ctrl+I',tags:'italic em * _ asterisk underscore',
+   syntax:'*italic text*',note:'Wrap with single asterisk. Also works with single underscore `_italic_`.'},
+  {name:'Bold + Italic',cat:'emphasis',tags:'bold italic strong em *** ___',
+   syntax:'***bold and italic***',note:'Triple asterisks or triple underscores for both at once.'},
+  {name:'Strikethrough',cat:'emphasis',shortcut:'Ctrl+Shift+X',tags:'strikethrough strike del ~~ tilde',
+   syntax:'~~strikethrough~~',note:'Wrap with double tildes. GFM extension.'},
+  {name:'Highlight',cat:'emphasis',tags:'highlight mark == yellow',
+   syntax:'==highlighted==',note:'Double equals signs. Supported in extended markdown (not all parsers).'},
+  {name:'Subscript',cat:'emphasis',tags:'subscript sub ~ tilde',
+   syntax:'H~2~O',note:'Single tilde wraps. Extended markdown — not all parsers support this.'},
+  {name:'Superscript',cat:'emphasis',tags:'superscript sup ^ caret',
+   syntax:'X^2^',note:'Caret wraps. Extended markdown — not all parsers support this.'},
+  {name:'Underline (HTML)',cat:'emphasis',tags:'underline u html',
+   syntax:'<u>underlined</u>',note:'No native markdown underline — use inline HTML `<u>` tag instead.'},
+
+  // LISTS
+  {name:'Unordered list',cat:'lists',shortcut:'Ctrl+Shift+U',tags:'bullet list ul unordered - * +',
+   syntax:'- Item one\n- Item two\n- Item three',note:'Use `-`, `*`, or `+` followed by a space. All are equivalent.'},
+  {name:'Ordered list',cat:'lists',shortcut:'Ctrl+Shift+O',tags:'numbered list ol ordered 1.',
+   syntax:'1. First item\n2. Second item\n3. Third item',note:'Number followed by `.` and a space. Numbers can all be `1.` — the parser handles counting.'},
+  {name:'Nested list',cat:'lists',tags:'nested indent sublist children',
+   syntax:'- Item one\n  - Nested item\n    - Deeper nest\n- Item two',note:'Indent nested items by 2 spaces (or a tab) per level.'},
+  {name:'Mixed nested list',cat:'lists',tags:'mixed nested ordered unordered',
+   syntax:'1. First\n   - Nested bullet\n   - Another\n2. Second',note:'Ordered and unordered lists can be nested inside each other.'},
+  {name:'Task list',cat:'lists',tags:'task checkbox checklist todo [ ] [x]',
+   syntax:'- [x] Done task\n- [ ] Pending task\n- [ ] Another item',note:'Square brackets with space = unchecked; `x` = checked. GFM extension.'},
+  {name:'List continuation',cat:'lists',tags:'list paragraph continue block',
+   syntax:'- Item one\n\n  Paragraph inside item.\n\n- Item two',note:'Indent continuation text by 2 spaces to keep it inside the list item.'},
+
+  // LINKS
+  {name:'Inline link',cat:'links',shortcut:'Ctrl+K',tags:'link url href a inline',
+   syntax:'[link text](https://example.com)',note:'Square brackets for the label, parentheses for the URL.'},
+  {name:'Link with title',cat:'links',tags:'link title tooltip hover',
+   syntax:'[link text](https://example.com "Tooltip title")',note:'Add a quoted title inside the parentheses — shown as a tooltip on hover.'},
+  {name:'Reference link',cat:'links',tags:'link reference label reuse',
+   syntax:'[link text][ref-label]\n\n[ref-label]: https://example.com',note:'Define the URL once as a reference, then reuse it by label anywhere in the document.'},
+  {name:'Reference link with title',cat:'links',tags:'link reference title tooltip',
+   syntax:'[text][ref]\n\n[ref]: https://example.com "Title"',note:'Same as reference link but with a tooltip title in the definition.'},
+  {name:'Auto link',cat:'links',tags:'autolink url angle bracket bare',
+   syntax:'<https://example.com>',note:'Angle brackets auto-link a bare URL or email address.'},
+  {name:'Auto link email',cat:'links',tags:'email autolink mailto angle',
+   syntax:'<user@example.com>',note:'Angle brackets around an email create a `mailto:` link.'},
+  {name:'Bare URL (GFM)',cat:'links',tags:'bare url autolink gfm automatic',
+   syntax:'https://example.com',note:'In GFM, plain URLs are auto-linked without angle brackets.'},
+
+  // IMAGES
+  {name:'Image',cat:'images',shortcut:'Ctrl+Shift+I',tags:'image img picture photo src alt',
+   syntax:'![alt text](image.jpg)',note:'Same as a link but prefixed with `!`. Alt text goes in square brackets.'},
+  {name:'Image with title',cat:'images',tags:'image title tooltip hover',
+   syntax:'![alt text](image.jpg "Image title")',note:'Quoted title inside parentheses shown on hover.'},
+  {name:'Reference image',cat:'images',tags:'image reference label reuse',
+   syntax:'![alt text][img-ref]\n\n[img-ref]: image.jpg "Optional title"',note:'Define the image URL as a reference label, reusable throughout the document.'},
+  {name:'Linked image',cat:'images',tags:'image link clickable',
+   syntax:'[![alt](image.jpg)](https://example.com)',note:'Wrap an image in a link by nesting the image syntax inside link brackets.'},
+
+  // CODE
+  {name:'Inline code',cat:'code',shortcut:'Ctrl+`',tags:'code inline monospace backtick `',
+   syntax:'Use `code` here',note:'Single backtick on each side for inline code spans.'},
+  {name:'Inline code with backtick',cat:'code',tags:'code backtick literal double ``',
+   syntax:'`` use `backtick` inside ``',note:'Use double backticks to enclose code that itself contains a backtick.'},
+  {name:'Fenced code block',cat:'code',shortcut:'Ctrl+Shift+`',tags:'code block fence ``` triple backtick',
+   syntax:'```\ncode here\n```',note:'Triple backticks on their own lines. Content is not parsed as markdown.'},
+  {name:'Code block with language',cat:'code',tags:'code block language syntax highlight js python',
+   syntax:'```javascript\nconsole.log("hello");\n```',note:'Add a language identifier after the opening triple backticks for syntax highlighting.'},
+  {name:'Indented code block',cat:'code',tags:'code block indent 4 spaces tab',
+   syntax:'    four spaces\n    of indentation',note:'Indent every line by 4 spaces or 1 tab. Less common than fenced blocks.'},
+  {name:'Tilde code block',cat:'code',tags:'code block tilde ~~~ fence',
+   syntax:'~~~\ncode here\n~~~',note:'Triple tildes work the same as triple backticks in most parsers.'},
+
+  // BLOCKQUOTES
+  {name:'Blockquote',cat:'blockquotes',shortcut:'Ctrl+Shift+Q',tags:'blockquote quote > citation',
+   syntax:'> This is a quote.',note:'A `>` followed by a space starts a blockquote. Works for any block of text.'},
+  {name:'Multi-line blockquote',cat:'blockquotes',tags:'blockquote multiline paragraph',
+   syntax:'> Line one.\n> Line two.\n> Line three.',note:'Continue the `>` on each line of the quote.'},
+  {name:'Lazy blockquote',cat:'blockquotes',tags:'blockquote lazy continuation',
+   syntax:'> Line one.\nLine two is still quoted.',note:'Continuation lines inside a paragraph do not need the `>`.'},
+  {name:'Nested blockquote',cat:'blockquotes',tags:'nested blockquote double >>',
+   syntax:'> Outer quote.\n>> Inner nested quote.',note:'Double `>>` for a quote inside a quote.'},
+  {name:'Blockquote with elements',cat:'blockquotes',tags:'blockquote heading bold list mixed',
+   syntax:'> ## Heading inside\n> **bold** and *italic*\n> - a list item',note:'Blockquotes can contain most other markdown elements.'},
+
+  // HORIZONTAL RULE
+  {name:'Horizontal rule (dashes)',cat:'rules',tags:'hr horizontal rule divider --- dash',
+   syntax:'---',note:'Three or more dashes on their own line. Leave a blank line above to avoid being read as a heading.'},
+  {name:'Horizontal rule (asterisks)',cat:'rules',tags:'hr horizontal rule divider *** asterisk',
+   syntax:'***',note:'Three or more asterisks on their own line.'},
+  {name:'Horizontal rule (underscores)',cat:'rules',tags:'hr horizontal rule divider ___ underscore',
+   syntax:'___',note:'Three or more underscores on their own line.'},
+  {name:'Rule with spaces',cat:'rules',tags:'hr horizontal rule spaces',
+   syntax:'- - -',note:'Spaces between the characters are allowed.'},
+
+  // TABLES
+  {name:'Basic table',cat:'tables',tags:'table row column | header',
+   syntax:'| Col 1 | Col 2 | Col 3 |\n| ----- | ----- | ----- |\n| A     | B     | C     |',
+   note:'Pipes `|` separate columns. The second row of dashes is required — it defines the header.'},
+  {name:'Left-aligned columns',cat:'tables',tags:'table align left :---',
+   syntax:'| Name  | Value |\n| :---- | :---- |\n| Alpha | 1     |',note:'Colon on the left side of dashes aligns that column left (default behavior).'},
+  {name:'Right-aligned columns',cat:'tables',tags:'table align right ---:',
+   syntax:'| Name  | Value |\n| ----: | ----: |\n| Alpha | 100   |',note:'Colon on the right side of dashes right-aligns the column.'},
+  {name:'Center-aligned columns',cat:'tables',tags:'table align center :---:',
+   syntax:'| Name  | Value |\n| :---: | :---: |\n| Alpha | 1     |',note:'Colons on both sides center-align the column.'},
+  {name:'Mixed alignment table',cat:'tables',tags:'table mixed align left right center',
+   syntax:'| Left | Center | Right |\n| :--- | :----: | ----: |\n| L    | C      | R     |',note:'Each column can have a different alignment.'},
+
+  // LINE BREAKS & PARAGRAPHS
+  {name:'Paragraph',cat:'breaks',tags:'paragraph break newline blank line',
+   syntax:'First paragraph.\n\nSecond paragraph.',note:'Leave a blank line between blocks of text to create separate paragraphs.'},
+  {name:'Hard line break',cat:'breaks',tags:'line break br hard two spaces trailing',
+   syntax:'Line one.  \nLine two.',note:'End a line with two or more trailing spaces before the newline to force a `<br>`.'},
+  {name:'Hard line break (backslash)',cat:'breaks',tags:'line break br backslash \\',
+   syntax:'Line one.\\\nLine two.',note:'A backslash at the end of a line also creates a hard line break (GFM).'},
+  {name:'Soft line break',cat:'breaks',tags:'soft break single newline paragraph',
+   syntax:'Line one.\nLine two.',note:'A single newline inside a paragraph is treated as a space — both lines merge.'},
+  {name:'Non-breaking space',cat:'breaks',tags:'non-breaking space nbsp html',
+   syntax:'word&nbsp;word',note:'Use the HTML entity `&nbsp;` for a non-breaking space that prevents wrapping.'},
+
+  // ESCAPING
+  {name:'Escape character',cat:'escaping',tags:'escape backslash \\ literal special character',
+   syntax:'\\*not italic\\*',note:'Prefix any special markdown character with `\\` to render it literally.'},
+  {name:'Escapable characters',cat:'escaping',tags:'escape characters list special',
+   syntax:'\\  \\`  \\*  \\_  \\{  \\}  \\[  \\]  \\(  \\)  \\#  \\+  \\-  \\.  \\!  \\|',
+   note:'All characters that can be escaped with a backslash.'},
+  {name:'HTML entity',cat:'escaping',tags:'entity html ampersand & lt gt',
+   syntax:'&amp;  &lt;  &gt;  &copy;  &mdash;',note:'HTML entities are passed through and rendered by the browser.'},
+
+  // HTML
+  {name:'Inline HTML',cat:'html',tags:'html inline tag span div raw',
+   syntax:'This is <span style="color:red">red</span> text.',note:'Most parsers allow raw HTML inline. Block-level HTML must be surrounded by blank lines.'},
+  {name:'HTML comment',cat:'html',shortcut:'Ctrl+/',tags:'html comment hidden <!-- -->',
+   syntax:'<!-- This is a comment -->',note:'HTML comments are not rendered in the output. Useful for notes to yourself.'},
+  {name:'HTML block',cat:'html',tags:'html block div details summary',
+   syntax:'<details>\n  <summary>Click to expand</summary>\n  Hidden content here.\n</details>',note:'Surround block-level HTML with blank lines so the parser treats it as raw HTML.'},
+  {name:'Superscript (HTML)',cat:'html',tags:'superscript html sup',
+   syntax:'X<sup>2</sup>',note:'Use the `<sup>` HTML tag when the markdown `^` extension is not supported.'},
+  {name:'Subscript (HTML)',cat:'html',tags:'subscript html sub',
+   syntax:'H<sub>2</sub>O',note:'Use the `<sub>` HTML tag when the markdown `~` extension is not supported.'},
+  {name:'Keyboard key',cat:'html',tags:'keyboard key kbd html',
+   syntax:'Press <kbd>Ctrl</kbd>+<kbd>C</kbd>',note:'`<kbd>` renders text as a keyboard key in supported renderers.'},
+  {name:'Mark / highlight (HTML)',cat:'html',tags:'mark highlight html yellow',
+   syntax:'<mark>highlighted text</mark>',note:'`<mark>` renders a yellow highlight when `==highlight==` is not supported.'},
+
+  // FOOTNOTES
+  {name:'Footnote',cat:'extended',tags:'footnote reference note [^]',
+   syntax:'Text with a note.[^1]\n\n[^1]: The footnote content.',note:'GFM and extended markdown. The label can be any string. Definition can go anywhere in the document.'},
+  {name:'Inline footnote',cat:'extended',tags:'footnote inline sidenote',
+   syntax:'Text[^note] here.\n\n[^note]: Longer description.',note:'Footnote labels can be descriptive strings, not just numbers.'},
+
+  // DEFINITION LISTS
+  {name:'Definition list',cat:'extended',tags:'definition list dl dt dd term',
+   syntax:'Term\n: Definition of the term.',note:'Extended markdown. Not supported by all parsers (e.g. not in GFM).'},
+  {name:'Multiple definitions',cat:'extended',tags:'definition list multiple',
+   syntax:'Term\n: First meaning.\n: Second meaning.',note:'A single term can have multiple definitions each on its own `: ` line.'},
+
+  // ABBREVIATIONS
+  {name:'Abbreviation',cat:'extended',tags:'abbreviation abbr tooltip hover',
+   syntax:'*[HTML]: HyperText Markup Language\n\nHTML is great.',note:'Extended markdown (PHP Markdown Extra). Adds a tooltip to every occurrence of the abbreviation.'},
+
+  // MATH
+  {name:'Inline math (LaTeX)',cat:'extended',tags:'math latex inline formula equation $',
+   syntax:'Einstein: $E = mc^2$',note:'Dollar signs wrap inline LaTeX math. Requires a renderer with MathJax or KaTeX support.'},
+  {name:'Math block (LaTeX)',cat:'extended',tags:'math latex block display equation $$',
+   syntax:'$$\n\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\n$$',note:'Double dollar signs on their own lines create a display-mode math block.'},
+
+  // MISC
+  {name:'Emoji shortcode',cat:'extended',tags:'emoji shortcode :smile: colon',
+   syntax:':smile:  :heart:  :rocket:',note:'Supported in GitHub, Slack, and some renderers. Not standard markdown.'},
+];
+
+const CATS=[...new Set(REF.map(r=>r.cat))];
+let activeCat='all', searchQ='';
+
+// ── Build category buttons ────────────────────────────────────────────────────
+const catDiv=document.getElementById('ref-cats');
+['all',...CATS].forEach(c=>{
+  const b=document.createElement('button');
+  b.className='cat-btn'+(c==='all'?' on':'');
+  b.textContent=c;
+  b.addEventListener('click',()=>{
+    activeCat=c;
+    document.querySelectorAll('.cat-btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    renderRef();
+  });
+  catDiv.appendChild(b);
+});
+
+function renderRef(){
+  const body=document.getElementById('ref-body');
+  const q=searchQ.toLowerCase().trim();
+  const items=REF.filter(r=>{
+    const matchCat=activeCat==='all'||r.cat===activeCat;
+    const matchQ=!q||r.name.toLowerCase().includes(q)||r.tags.toLowerCase().includes(q)||r.syntax.toLowerCase().includes(q)||r.note.toLowerCase().includes(q);
+    return matchCat&&matchQ;
+  });
+  if(!items.length){body.innerHTML='<div class="no-results">No results for "'+searchQ+'"</div>';return;}
+  body.innerHTML=items.map(r=>`
+    <div class="ref-entry">
+      <div class="ref-entry-head">
+        <span class="ref-name">${r.name}</span>
+        <span class="ref-cat-tag">${r.cat}</span>
+        ${r.shortcut?`<span class="ref-shortcut">${r.shortcut}</span>`:''}
+      </div>
+      <div class="ref-row">
+        <div>
+          <div class="ref-syntax" data-syntax="${encodeURIComponent(r.syntax)}" title="Click to insert into editor">${escHtml(r.syntax)}</div>
+          <div class="ref-copy-hint">click to insert</div>
+        </div>
+        <div class="ref-note">${r.note.replace(/`([^`]+)`/g,'<code style="font-family:var(--font-mono);font-size:11px;background:var(--color-background-secondary);padding:1px 4px;border-radius:3px">$1</code>')}</div>
+      </div>
+    </div>`).join('');
+  body.querySelectorAll('.ref-syntax').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const syn=decodeURIComponent(el.dataset.syntax);
+      const s=editor.selectionStart;
+      setVal(editor.value.substring(0,s)+syn+editor.value.substring(s),s+syn.length);
+      editor.focus();
+    });
+  });
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+document.getElementById('ref-search').addEventListener('input',e=>{
+  searchQ=e.target.value;renderRef();
+});
+document.getElementById('ref-toggle-btn').addEventListener('click',()=>{
+  const p=document.getElementById('ref-panel');
+  const btn=document.getElementById('ref-toggle-btn');
+  p.classList.toggle('open');btn.classList.toggle('active');
+  if(p.classList.contains('open'))document.getElementById('ref-search').focus();
+});
+
+// ── Editor & preview logic ────────────────────────────────────────────────────
+const editor=document.getElementById('md-editor');
+const preview=document.getElementById('md-preview');
+const wrapToggle=document.getElementById('wrap-toggle');
+const syncToggle=document.getElementById('sync-scroll');
+const previewToggle=document.getElementById('preview-toggle');
+const statusWords=document.getElementById('status-words');
+const copyBtn=document.getElementById('copy-btn');
+const copyHtmlBtn=document.getElementById('copy-html-btn');
+const findBar=document.getElementById('find-bar');
+const findInput=document.getElementById('find-input');
+const replaceInput=document.getElementById('replace-input');
+const findCount=document.getElementById('find-count');
+const findToggleBtn=document.getElementById('find-toggle-btn');
+const previewLabel=document.getElementById('preview-label');
+
+const history=[];let histIdx=-1;let skipPush=false;
+function pushHistory(val){if(skipPush)return;if(history[histIdx]===val)return;history.splice(histIdx+1);history.push(val);if(history.length>200)history.shift();else histIdx++;histIdx=history.length-1;}
+function applyHistory(val){if(val===undefined)return;skipPush=true;const ss=editor.selectionStart,se=editor.selectionEnd;editor.value=val;editor.selectionStart=Math.min(ss,val.length);editor.selectionEnd=Math.min(se,val.length);skipPush=false;render();}
+function undo(){if(histIdx>0){histIdx--;applyHistory(history[histIdx]);}}
+function redo(){if(histIdx<history.length-1){histIdx++;applyHistory(history[histIdx]);}}
+document.getElementById('undo-btn').addEventListener('click',()=>{editor.focus();undo();});
+document.getElementById('redo-btn').addEventListener('click',()=>{editor.focus();redo();});
+let pushTimer;
+editor.addEventListener('input',()=>{clearTimeout(pushTimer);pushTimer=setTimeout(()=>pushHistory(editor.value),400);render();});
+pushHistory('');
+
+function render(){
+  const txt=editor.value;
+  preview.innerHTML=marked.parse(txt||'');
+  const words=txt.trim()?txt.trim().split(/\s+/).length:0;
+  const lines=txt.substring(0,editor.selectionStart).split('\n');
+  statusWords.textContent=words+' word'+(words!==1?'s':'')+' · '+txt.length+' char'+(txt.length!==1?'s':'')+' · line '+lines.length+', col '+(lines[lines.length-1].length+1);
+  updateFindCount();
+}
+editor.addEventListener('keyup',render);
+
+wrapToggle.addEventListener('change',()=>editor.classList.toggle('nowrap',!wrapToggle.checked));
+previewToggle.addEventListener('change',()=>{preview.style.display=previewToggle.checked?'':'none';previewLabel.style.display=previewToggle.checked?'':'none';});
+let isSyncing=false;
+editor.addEventListener('scroll',()=>{if(!syncToggle.checked||isSyncing)return;isSyncing=true;const r=editor.scrollTop/(editor.scrollHeight-editor.clientHeight||1);preview.scrollTop=r*(preview.scrollHeight-preview.clientHeight);isSyncing=false;});
+
+function getLineInfo(){const v=editor.value,s=editor.selectionStart,e=editor.selectionEnd;const lineStart=v.lastIndexOf('\n',s-1)+1;const lineEnd=v.indexOf('\n',e);return{v,s,e,lineStart,lineEnd:lineEnd===-1?v.length:lineEnd};}
+function setVal(val,ss,se){pushHistory(editor.value);skipPush=true;editor.value=val;editor.selectionStart=ss;editor.selectionEnd=se!==undefined?se:ss;skipPush=false;render();}
+function wrap(before,after,def){const s=editor.selectionStart,e=editor.selectionEnd,v=editor.value;const sel=v.substring(s,e)||def;setVal(v.substring(0,s)+before+sel+after+v.substring(e),s+before.length,s+before.length+sel.length);editor.focus();}
+function linePrefix(prefix){const{v,s,lineStart}=getLineInfo();const line=v.substring(lineStart);if(line.startsWith(prefix)){setVal(v.substring(0,lineStart)+v.substring(lineStart+prefix.length),Math.max(lineStart,s-prefix.length));}else{setVal(v.substring(0,lineStart)+prefix+v.substring(lineStart),s+prefix.length);}editor.focus();}
+
+const actions={
+  bold:()=>wrap('**','**','bold text'),
+  italic:()=>wrap('*','*','italic text'),
+  strike:()=>wrap('~~','~~','strikethrough'),
+  h1:()=>linePrefix('# '),h2:()=>linePrefix('## '),h3:()=>linePrefix('### '),
+  link:()=>{const s=editor.selectionStart,e=editor.selectionEnd,v=editor.value;const sel=v.substring(s,e)||'link text';const rep='['+sel+'](url)';setVal(v.substring(0,s)+rep+v.substring(e),s+sel.length+3,s+rep.length-1);editor.focus();},
+  image:()=>wrap('![','](url)','alt text'),
+  code:()=>wrap('`','`','code'),
+  codeblock:()=>wrap('\n```\n','\n```\n','code here'),
+  ul:()=>linePrefix('- '),ol:()=>linePrefix('1. '),quote:()=>linePrefix('> '),
+  hr:()=>{const s=editor.selectionStart;setVal(editor.value.substring(0,s)+'\n\n---\n\n'+editor.value.substring(s),s+7);editor.focus();},
+  table:()=>{const t='\n| Header | Header |\n| --- | --- |\n| Cell | Cell |\n';const s=editor.selectionStart;setVal(editor.value.substring(0,s)+t+editor.value.substring(s),s+t.length);editor.focus();},
+  clear:()=>{if(confirm('Clear all content?')){setVal('',0);}},
+  duplicateLine:()=>{const{v,s,lineStart,lineEnd}=getLineInfo();const line=v.substring(lineStart,lineEnd);setVal(v.substring(0,lineEnd)+'\n'+line+v.substring(lineEnd),s+(lineEnd-lineStart+1));editor.focus();},
+  deleteLine:()=>{const{v,s,lineStart,lineEnd}=getLineInfo();const nv=lineStart===0?v.substring(lineEnd+1):v.substring(0,lineStart-1)+v.substring(lineEnd);setVal(nv,Math.min(lineStart,nv.length));editor.focus();},
+  moveLineUp:()=>{const{v,s,e,lineStart,lineEnd}=getLineInfo();if(lineStart===0)return;const pls=v.lastIndexOf('\n',lineStart-2)+1;const line=v.substring(lineStart,lineEnd);const prev=v.substring(pls,lineStart-1);const off=-(prev.length+1);setVal(v.substring(0,pls)+line+'\n'+prev+v.substring(lineEnd),s+off,e+off);editor.focus();},
+  moveLineDown:()=>{const{v,s,e,lineStart,lineEnd}=getLineInfo();if(lineEnd===v.length)return;const ne=v.indexOf('\n',lineEnd+1);const end2=ne===-1?v.length:ne;const line=v.substring(lineStart,lineEnd);const next=v.substring(lineEnd+1,end2);const off=next.length+1;setVal(v.substring(0,lineStart)+next+'\n'+line+v.substring(end2),s+off,e+off);editor.focus();},
+  selectLine:()=>{const{lineStart,lineEnd}=getLineInfo();editor.selectionStart=lineStart;editor.selectionEnd=lineEnd;editor.focus();},
+  newLineBelow:()=>{const{v,lineEnd}=getLineInfo();setVal(v.substring(0,lineEnd)+'\n'+v.substring(lineEnd),lineEnd+1);editor.focus();},
+  newLineAbove:()=>{const{v,lineStart}=getLineInfo();setVal(v.substring(0,lineStart)+'\n'+v.substring(lineStart),lineStart);editor.focus();},
+  toggleComment:()=>{const{v,lineStart,lineEnd}=getLineInfo();const line=v.substring(lineStart,lineEnd);if(line.startsWith('<!--')&&line.endsWith('-->')){const inner=line.slice(4,-3).trim();setVal(v.substring(0,lineStart)+inner+v.substring(lineEnd),lineStart+inner.length);}else{const rep='<!-- '+line+' -->';setVal(v.substring(0,lineStart)+rep+v.substring(lineEnd),lineStart+rep.length);}editor.focus();},
+  indent:()=>{const s=editor.selectionStart,e=editor.selectionEnd;setVal(editor.value.substring(0,s)+'  '+editor.value.substring(e),s+2);editor.focus();},
+  outdent:()=>{const{v,s,lineStart}=getLineInfo();if(v.substring(lineStart).startsWith('  ')){setVal(v.substring(0,lineStart)+v.substring(lineStart+2),Math.max(lineStart,s-2));}editor.focus();},
+};
+
+document.querySelectorAll('.tb-btn[data-action]').forEach(btn=>{btn.addEventListener('click',()=>actions[btn.dataset.action]&&actions[btn.dataset.action]());});
+
+editor.addEventListener('keydown',e=>{
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl&&!e.altKey){
+    if(e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
+    else if(e.key==='y'||(e.key==='z'&&e.shiftKey)){e.preventDefault();redo();}
+    else if(e.key==='b'){e.preventDefault();actions.bold();}
+    else if(e.key==='i'){e.preventDefault();actions.italic();}
+    else if(e.key==='k'){e.preventDefault();actions.link();}
+    else if(e.key==='`'&&!e.shiftKey){e.preventDefault();actions.code();}
+    else if(e.key==='`'&&e.shiftKey){e.preventDefault();actions.codeblock();}
+    else if(e.key==='1'){e.preventDefault();actions.h1();}
+    else if(e.key==='2'){e.preventDefault();actions.h2();}
+    else if(e.key==='3'){e.preventDefault();actions.h3();}
+    else if(e.key==='d'&&!e.shiftKey){e.preventDefault();actions.duplicateLine();}
+    else if(e.key==='l'){e.preventDefault();actions.selectLine();}
+    else if(e.key==='/'&&!e.shiftKey){e.preventDefault();actions.toggleComment();}
+    else if(e.key==='f'){e.preventDefault();openFind();}
+    else if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();actions.newLineBelow();}
+    else if(e.key==='Enter'&&e.shiftKey){e.preventDefault();actions.newLineAbove();}
+    else if(e.shiftKey&&e.key==='X'){e.preventDefault();actions.strike();}
+    else if(e.shiftKey&&e.key==='U'){e.preventDefault();actions.ul();}
+    else if(e.shiftKey&&e.key==='O'){e.preventDefault();actions.ol();}
+    else if(e.shiftKey&&e.key==='Q'){e.preventDefault();actions.quote();}
+    else if(e.shiftKey&&(e.key==='K'||e.key==='k')){e.preventDefault();actions.deleteLine();}
+    else if(e.shiftKey&&e.key==='I'){e.preventDefault();actions.image();}
+  }
+  if(e.altKey&&!ctrl){if(e.key==='ArrowUp'){e.preventDefault();actions.moveLineUp();}else if(e.key==='ArrowDown'){e.preventDefault();actions.moveLineDown();}}
+  if(e.key==='Tab'&&!ctrl){e.preventDefault();e.shiftKey?actions.outdent():actions.indent();}
+  if(e.key==='F3'){e.preventDefault();e.shiftKey?findPrev():findNext();}
+  if(e.key==='Escape'){if(findBar.classList.contains('visible')){closeFind();editor.focus();}}
+});
+
+let findMatches=[],findCurrent=0;
+function openFind(){findBar.classList.add('visible');findToggleBtn.classList.add('active');const sel=editor.value.substring(editor.selectionStart,editor.selectionEnd).trim();if(sel&&sel.length<80)findInput.value=sel;findInput.focus();findInput.select();updateFindCount();}
+function closeFind(){findBar.classList.remove('visible');findToggleBtn.classList.remove('active');findInput.classList.remove('nomatch');findCount.textContent='';}
+function updateFindCount(){const q=findInput.value;if(!q||!findBar.classList.contains('visible')){findMatches=[];findCount.textContent='';return;}const lv=editor.value.toLowerCase(),lq=q.toLowerCase();findMatches=[];let i=0;while((i=lv.indexOf(lq,i))!==-1){findMatches.push(i);i+=q.length;}findCount.textContent=findMatches.length?(findCurrent+1)+'/'+findMatches.length:'no results';findInput.classList.toggle('nomatch',!findMatches.length);}
+function findNext(){const q=findInput.value;if(!q)return;updateFindCount();if(!findMatches.length)return;findCurrent=(findCurrent+1)%findMatches.length;const idx=findMatches[findCurrent];editor.selectionStart=idx;editor.selectionEnd=idx+q.length;editor.focus();findCount.textContent=(findCurrent+1)+'/'+findMatches.length;}
+function findPrev(){const q=findInput.value;if(!q)return;updateFindCount();if(!findMatches.length)return;findCurrent=(findCurrent-1+findMatches.length)%findMatches.length;const idx=findMatches[findCurrent];editor.selectionStart=idx;editor.selectionEnd=idx+q.length;editor.focus();findCount.textContent=(findCurrent+1)+'/'+findMatches.length;}
+function replaceOne(){const q=findInput.value,r=replaceInput.value;if(!q||!findMatches.length)return;const idx=findMatches[findCurrent];setVal(editor.value.substring(0,idx)+r+editor.value.substring(idx+q.length),idx+r.length);updateFindCount();}
+function replaceAll(){const q=findInput.value,r=replaceInput.value;if(!q)return;const count=editor.value.split(q).length-1;if(!count)return;setVal(editor.value.split(q).join(r),editor.selectionStart);findMatches=[];findCount.textContent='replaced '+count;}
+findToggleBtn.addEventListener('click',()=>findBar.classList.contains('visible')?closeFind():openFind());
+document.getElementById('find-close').addEventListener('click',closeFind);
+document.getElementById('find-prev').addEventListener('click',findPrev);
+document.getElementById('find-next').addEventListener('click',findNext);
+document.getElementById('replace-one').addEventListener('click',replaceOne);
+document.getElementById('replace-all').addEventListener('click',replaceAll);
+findInput.addEventListener('input',()=>{findCurrent=0;updateFindCount();});
+findInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.shiftKey?findPrev():findNext();}if(e.key==='Escape'){closeFind();editor.focus();}});
+
+document.getElementById('sc-toggle-btn').addEventListener('click',()=>{document.getElementById('shortcuts-panel').classList.toggle('open');document.getElementById('sc-toggle-btn').classList.toggle('active');});
+
+copyBtn.addEventListener('click',()=>navigator.clipboard.writeText(editor.value).then(()=>{copyBtn.textContent='copied!';setTimeout(()=>copyBtn.textContent='copy md',1500);}));
+copyHtmlBtn.addEventListener('click',()=>navigator.clipboard.writeText(preview.innerHTML).then(()=>{copyHtmlBtn.textContent='copied!';setTimeout(()=>copyHtmlBtn.textContent='copy html',1500);}));
+
+const STARTER=`# Markdown Live Editor
+
+Type here and see the **live preview** on the right.
+
+Open **md reference** to browse every markdown syntax rule — search by name, or filter by category. Click any syntax snippet to insert it directly into the editor.
+`;
+editor.value=STARTER;
+render();pushHistory(editor.value);
+renderRef();
+</script>
